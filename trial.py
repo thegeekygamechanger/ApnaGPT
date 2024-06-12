@@ -48,7 +48,6 @@ def load_users():
     if os.path.exists(USER_DB):
         with open(USER_DB, "r") as f:
             users = json.load(f)
-        # Ensure all user records have a phone field
         for user in users.values():
             if "phone" not in user:
                 user["phone"] = ""
@@ -62,7 +61,6 @@ def save_users(users):
 def authenticate_user(username, password):
     users = load_users()
     if username in users:
-        # Hash the input password and compare with stored hash
         hashed_input_password = hashlib.sha256(password.encode()).hexdigest()
         return hashed_input_password == users[username]["password"]
     return False
@@ -70,8 +68,7 @@ def authenticate_user(username, password):
 def register_user(username, password, phone):
     users = load_users()
     if username in users:
-        return False  # User already exists
-    # Hash the password before storing
+        return False
     hashed_password = hashlib.sha256(password.encode()).hexdigest()
     users[username] = {"password": hashed_password, "phone": phone}
     save_users(users)
@@ -80,7 +77,6 @@ def register_user(username, password, phone):
 def update_password(username, new_password):
     users = load_users()
     if username in users:
-        # Hash the new password before storing
         hashed_password = hashlib.sha256(new_password.encode()).hexdigest()
         users[username]["password"] = hashed_password
         save_users(users)
@@ -122,7 +118,7 @@ def initialize_retriever(store_path, model_path):
     return vectorstore.as_retriever(search_type="similarity", search_kwargs={'k': 4})
 
 @st.cache_resource
-def setup_rag_chain(retriever):
+def setup_rag_chain(_retriever):
     prompt_template = """
     <s>[INST] You are template
 
@@ -140,7 +136,7 @@ def setup_rag_chain(retriever):
         | StrOutputParser()
     )
 
-    return RunnableParallel({"context": retriever, "question": RunnablePassthrough()}).assign(answer=rag_chain_from_docs)
+    return RunnableParallel({"context": _retriever, "question": RunnablePassthrough()}).assign(answer=rag_chain_from_docs)
 
 def load_user_history(username):
     chat_session_file_path = os.path.join(CHAT_SESSION_FOLDER, f"{username}.csv")
@@ -168,7 +164,7 @@ def backup_chat_history(username):
 def clear_user_history(username):
     chat_session_file_path = os.path.join(CHAT_SESSION_FOLDER, f"{username}.csv")
     if os.path.exists(chat_session_file_path):
-        backup_chat_history(username)  # Backup chat history CSV
+        backup_chat_history(username)
         os.remove(chat_session_file_path)
 
 # Streamlit Application
@@ -223,13 +219,6 @@ def main_content():
 
         st.write("### Chat History")
         st.dataframe(st.session_state.user_history)
-
-        #st.write("### Download Chat History")
-        #chat_session_csv = st.session_state.user_history.to_csv(index=False).encode()
-        #chat_session_filename = f"{st.session_state.username}_chat_history.csv"
-       # b64 = base64.b64encode(chat_session_csv).decode()
-       # href = f'<a href="data:file/csv;base64,{b64}" download="{chat_session_filename}">Download Query CSV</a>'
-        #st.markdown(href, unsafe_allow_html=True)
 
         if st.session_state.user_history.empty or not st.session_state.user_question:
             st.session_state.download_new_query_csv = False
@@ -288,7 +277,6 @@ def main():
                     st.experimental_rerun()
                 else:
                     st.error("Invalid username or password")
-            # Clear 'reset_username' from session state if switching to Login
             if "reset_username" in st.session_state:
                 del st.session_state.reset_username
 
@@ -304,7 +292,6 @@ def main():
                         st.error("User already exists")
                 else:
                     st.error("Invalid phone number. Please enter a 10-digit phone number.")
-            # Clear 'reset_username' from session state if switching to Signup
             if "reset_username" in st.session_state:
                 del st.session_state.reset_username
 
@@ -332,4 +319,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-		
