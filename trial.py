@@ -98,13 +98,13 @@ def load_and_split_pdf(file_path, chunk_size=1000, chunk_overlap=20):
     return text_splitter.split_documents(documents)
 
 @st.cache_resource
-def create_embeddings_from_chunks(chunks, model_path, store_path):
+def create_embeddings_from_chunks(_chunks, model_path, store_path):
     embedding_model = HuggingFaceEmbeddings(
         model_name=model_path,
         model_kwargs={'device': 'cuda'},
         encode_kwargs={'normalize_embeddings': True}
     )
-    vectorstore = FAISS.from_documents(chunks, embedding_model)
+    vectorstore = FAISS.from_documents(_chunks, embedding_model)
     vectorstore.save_local(store_path)
     return vectorstore
 
@@ -127,7 +127,7 @@ def setup_rag_chain(_retriever):
     {question} [/INST] </s>
     """
     prompt = ChatPromptTemplate.from_template(prompt_template)
-    llm = ChatOllama(model="llama3", verbose=True, callback_manager=CallbackManager([StreamingStdOutCallbackHandler()]), temperature=0)
+    llm = ChatOllama(model="gemma", verbose=True, callback_manager=CallbackManager([StreamingStdOutCallbackHandler()]), temperature=0)
 
     rag_chain_from_docs = (
         RunnablePassthrough.assign(context=(lambda x: format_documents(x["context"])))
@@ -167,9 +167,23 @@ def clear_user_history(username):
         backup_chat_history(username)
         os.remove(chat_session_file_path)
 
+def centered_title(title):
+    st.markdown(f"""
+        <style>
+        .title-style {{
+            text-align: center;
+            color: #2E86C1;
+            font-size: 3em;
+            margin: 0.67em 0;
+        }}
+        </style>
+        <h1 class="title-style">{title}</h1>
+        """, unsafe_allow_html=True)
+
 # Streamlit Application
 def main_content():
     st.sidebar.title(f"Welcome, {st.session_state.username}")
+    centered_title("ApnaGPT")
     page = st.sidebar.radio("", ["Home", "Feedback", "About", "Logout"])
 
     if page == "Home":
@@ -181,7 +195,12 @@ def main_content():
             st.session_state.rag_chain_with_source = setup_rag_chain(retriever)
         rag_chain_with_source = st.session_state.rag_chain_with_source
 
-        st.session_state.user_question = st.text_input("Ask a question:", value=st.session_state.get("user_question", ""))
+        st.session_state.user_question = st.text_input(
+            "Ask a question:",
+            value=st.session_state.get("user_question", ""),
+            key="user_question_input",
+            placeholder="Type your question"
+        )
 
         if st.button("Clear Chat"):
             clear_user_history(st.session_state.username)
@@ -260,11 +279,27 @@ def main_content():
         del st.session_state.username
         st.experimental_rerun()
 
+def landing_page():
+    st.markdown("""
+        <style>
+            .main-header { font-size: 2.5rem; text-align: center; color: #2E86C1; margin-top: 20px; }
+            .sub-header { font-size: 1.25rem; text-align: center; color: #34495E; }
+            .button-center { display: flex; justify-content: center; margin-top: 20px; }
+            .button-center button { font-size: 1rem; padding: 10px 20px; color: white; background-color: #2E86C1; border: none; border-radius: 5px; }
+            .button-center button:hover { background-color: #1B4F72; }
+        </style>
+        <div class="main-header">Welcome to ApnaGPT</div>
+        <div class="sub-header">Your go-to tool for intelligent document analysis and question answering.</div>
+        <div class="button-center">
+            <button onclick="window.location.href='/main'">Get Started</button>
+        </div>
+    """, unsafe_allow_html=True)
+
 def main():
     st.set_page_config(page_title="ApnaGPT", page_icon=":robot_face:")
-    st.markdown("<h1 style='text-align: center;'>ApnaGPT</h1>", unsafe_allow_html=True)
-
+    
     if "username" not in st.session_state:
+        landing_page()
         st.sidebar.title("Login / Signup")
         choice = st.sidebar.radio("Choose Action", ["Login", "Signup", "Forgot Password"])
 
