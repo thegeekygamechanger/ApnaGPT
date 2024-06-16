@@ -1,16 +1,1 @@
 streamlit==1.27.2
-pandas==2.0.3
-PyMuPDF==1.22.3
-faiss-cpu==1.7.3
-torch==2.1.0
-transformers==4.34.0
-langchain==0.98.1
-langchain-core==0.2.0
-# Since HuggingFaceEmbeddings requires sentence-transformers
-sentence-transformers==2.2.2
-# HuggingFace also requires certain tokenizers
-tokenizers==0.14.1
-# Base64 is part of the standard library and doesn't need to be included
-
-# Note: Ensure you have the correct version of langchain and other dependencies,
-# which might depend on the specific functionalities you are using.
