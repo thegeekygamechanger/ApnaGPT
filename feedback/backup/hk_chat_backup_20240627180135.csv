@@ -1,0 +1,45 @@
+timestamp,question,answer
+2024-06-27 17:55:16.121680,who developed you,The template assistant was developed by Harsh Kumar and Vaibhav Chandra.
+2024-06-27 18:00:33.413451,write data ingestion in java,"To write a data ingestion program in Java for KitabPadhoIndia, we can use Apache NiFi to handle the data flow and processing. Here's an example of how you could design a simple data ingestion pipeline:
+
+```java
+import org.apache.nifi.components.PrioritizedApprovedStatus;
+import org.apache.nifi.flowfile.FlowFile;
+import org.apache.nifi.processor.Processor;
+import org.apache.nifi.processor.exception.FailToWriteException;
+
+public class KitabPadhoIndiaDataIngestion extends Processor {
+
+    @Override
+    public void onTrigger(ProcessorTrigger trigger) {
+        FlowFile flowFile = trigger.getFlowFile();
+        
+        // Read data from the source (e.g. a CSV file or a database)
+        String data = readSourceData(flowFile);
+        
+        // Process the data (e.g. convert it to JSON, filter out unnecessary fields)
+        String processedData = processData(data);
+        
+        // Write the processed data to the target (e.g. a database or a file)
+        writeTargetData(processedData);
+    }
+
+    private String readSourceData(FlowFile flowFile) {
+        // Implement your logic to read data from the source
+        return ""Sample Data"";
+    }
+
+    private String processData(String data) {
+        // Implement your logic to process the data
+        return data;
+    }
+
+    private void writeTargetData(String data) {
+        // Implement your logic to write the processed data to the target
+    }
+}
+```
+
+This is a basic example of how you could design a data ingestion pipeline in Java using Apache NiFi. You would need to implement the `readSourceData`, `processData`, and `writeTargetData` methods according to your specific requirements.
+
+Please note that this is just an example, and you may need to modify it based on your actual use case."
