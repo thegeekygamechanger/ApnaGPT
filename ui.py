@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime
-import base64
 import os
 from authenticator import Authenticator
 from file_operations import save_text_file
@@ -12,9 +11,9 @@ from langchain.callbacks.manager import CallbackManager
 from langchain.callbacks.streaming_stdout import StreamingStdOutCallbackHandler
 from langchain_core.runnables import RunnableParallel, RunnablePassthrough
 from langchain_core.output_parsers import StrOutputParser
-from config import CHAT_SESSION_FOLDER, FEEDBACK_FOLDER, VECTORSTORE_PATH, MODEL_PATH
+from config import CHAT_SESSION_FOLDER, FEEDBACK_FOLDER, VECTORSTORE_PATH, MODEL_PATH, ENCODER_MODEL_PATH, LOGO_PATH
 
-# ChatManager class
+# Define ChatManager class
 class ChatManager:
     @staticmethod
     def load_user_history(username):
@@ -33,20 +32,36 @@ class ChatManager:
         
         combined_data = pd.concat([existing_data, new_data], ignore_index=True)
         combined_data.to_csv(filepath, index=False)
+    
+    @staticmethod
+    def clear_user_main_chat():
+        st.session_state.main_chat = pd.DataFrame(columns=["timestamp", "question", "answer"])
 
     @staticmethod
     def clear_user_history(username):
         filepath = os.path.join(CHAT_SESSION_FOLDER, f"{username}_history.csv")
         if os.path.exists(filepath):
             os.remove(filepath)
+        st.session_state.user_history = pd.DataFrame(columns=["timestamp", "question", "answer"])
+        st.session_state.main_chat = pd.DataFrame(columns=["timestamp", "question", "answer"])
+    
+    @staticmethod
+    def clear_all_chat(username):
+        filepath = os.path.join(CHAT_SESSION_FOLDER, f"{username}_history.csv")
+        if os.path.exists(filepath):
+            os.remove(filepath)
+        # Clear in session state
+        st.session_state.user_history = pd.DataFrame(columns=["timestamp", "question", "answer"])
+        st.session_state.main_chat = pd.DataFrame(columns=["timestamp", "question", "answer"])
 
-# Functions for RAG chain setup and backup
+
+# Function to setup RAG chain
 def setup_rag_chain(_retriever):
     prompt_template = """
-    <s>[INST] You are a template assistant
+    <s>[INST] You are a C-Bot Assitant developed by Harsh Kumar at C-DAC Pune.
 
     {context}
-    You are a respectful and honest assistant. Answer the user's questions using only the context provided. Also, answer coding-related questions with code and explanation. If you know the answer other than context, just answer all questions. Do not start the response with salutations, answer directly.
+    You are a respectful and honest C-BOT assistant. Answer the user's questions using only the context provided to you. Answer coding-related questions with code and explanation. You should not start giving code to yourself, if someone ask to write any code, avoid giving code. Do not start the response with salutations, answer directly. Do not start generating random code from context provided to you. If any user ask you "who" starting question, answer them Harsh Kumar Developed you.
     {question} [/INST] </s>
     """
     prompt = ChatPromptTemplate.from_template(prompt_template)
@@ -61,62 +76,49 @@ def setup_rag_chain(_retriever):
 
     return RunnableParallel({"context": _retriever, "question": RunnablePassthrough()}).assign(answer=rag_chain_from_docs)
 
+# Function to backup chat history
 def backup_chat_history(username):
     backup_folder = os.path.join(FEEDBACK_FOLDER, "backup")
     os.makedirs(backup_folder, exist_ok=True)
     backup_filename = os.path.join(backup_folder, f"{username}_chat_backup_{datetime.now().strftime('%Y%m%d%H%M%S')}.csv")
     st.session_state.user_history.to_csv(backup_filename, index=False)
 
-# Main content function
+# Function for main content
+# Function for main content
 def main_content(username):
-    st.sidebar.image("/home/harshk/LLM/modular/c.png", width=100)  # Replace with your image URL and width
+    st.sidebar.image(LOGO_PATH, width=100)  # Replace with your image URL and width
     st.sidebar.markdown(f'<h1 style="color: Navy;">Welcome, {username}</h1>', unsafe_allow_html=True)
     page = st.sidebar.radio("", ["Home", "Feedback", "About", "Logout"])
 
-    # Initialize session state for user history
+    # Initialize user history and main chat data if not already initialized
     if "user_history" not in st.session_state or st.session_state.get("current_username") != username:
         st.session_state.user_history = ChatManager.load_user_history(username)
         st.session_state.current_username = username
 
-    if page == "Home":
-    #     st.markdown("""
-    #          #               <style>
-    #         .fade-in {
-    #             animation: fadeIn 1s ease-in-out forwards;
-    #             color: #3498DB; /* Blue color */
-    #             text-align: center; /* Center align text */
-    #             opacity: 0; /* Start with opacity 0 for fade-in effect */
-    #         }
-    #         @keyframes fadeIn {
-    #             from { opacity: 0; }
-    #             to { opacity: 1; }
-    #         }
-    #     </style>
-    #    <h1> <div class="fade-in">
-    #          ApnaGPT 
-    #     </div></h1>
-    #         """, unsafe_allow_html=True)
+    if "main_chat" not in st.session_state:
+        st.session_state.main_chat = pd.DataFrame(columns=["timestamp", "question", "answer"])
 
+    # Handle different pages in the sidebar
+    if page == "Home":
+        # Initialize retriever and RAG chain if not already initialized
         if "retriever" not in st.session_state:
-            st.session_state.retriever = initialize_retriever(VECTORSTORE_PATH, MODEL_PATH)
-        retriever = st.session_state.retriever
+            st.session_state.retriever = initialize_retriever(VECTORSTORE_PATH, MODEL_PATH, ENCODER_MODEL_PATH)
+        _retriever = st.session_state.retriever
 
         if "rag_chain_with_source" not in st.session_state:
-            st.session_state.rag_chain_with_source = setup_rag_chain(retriever)
+            st.session_state.rag_chain_with_source = setup_rag_chain(_retriever)
         rag_chain_with_source = st.session_state.rag_chain_with_source
 
-        # User Input Section (at the top)
+        # User input section
         with st.form(key='user_input_form', clear_on_submit=True):
             user_question = st.text_input("Ask your question:", key='user_question_input', placeholder="Write Prompt")
             submit_button_clicked = st.form_submit_button("Submit")
 
             if submit_button_clicked:
-                st.session_state.user_question = user_question  # Update session state with the question
                 output = {}
 
                 if user_question:
-                    output_placeholder = st.empty()  # Prepare a placeholder for the output
-
+                    output_placeholder = st.empty()
                     for chunk in rag_chain_with_source.stream(user_question):
                         for key, value in chunk.items():
                             if key not in output:
@@ -126,68 +128,74 @@ def main_content(username):
 
                         if output.get('answer'):
                             with output_placeholder.container():
-                                st.markdown(f"**👾:** {output['answer']}")
+                                st.markdown(
+                                    f'<div style="border: 2px solid blue; padding: 10px; border-radius: 5px; background-color: #e0f7fa;">'
+                                    f'<strong>😊 Question:</strong> {user_question}<br>'
+                                    f'<strong>👾 Answer:</strong> {output["answer"]}'
+                                    f'</div>', unsafe_allow_html=True
+                                )
                             st.session_state.last_response = output['answer']
 
                     if output:
                         new_data = pd.DataFrame([{"timestamp": datetime.now(), "question": user_question, "answer": output["answer"]}])
                         st.session_state.user_history = pd.concat([st.session_state.user_history, new_data], ignore_index=True)
                         ChatManager.save_user_history(username, new_data)
-                        st.experimental_rerun()
+                        # Update the main chat in the session state
+                        st.session_state.main_chat = pd.concat([st.session_state.main_chat, new_data], ignore_index=True)
 
-        # Main Chat Area (Below the input)
+        # Main chat area
         chat_container = st.container()
-
-        # Display chat history in reverse order
-        for _, row in st.session_state.user_history.iloc[::-1].iterrows():
+        for _, row in st.session_state.main_chat.iterrows():
             with chat_container:
-                st.markdown(f"**😊:** {row['question']}")
-                st.markdown(f"**👾:** {row['answer']}")
-                st.divider()  # Add a divider between messages
+                st.write(f"**[{row['timestamp']}] 🙋 Question:** {row['question']}")
+                st.markdown(f"**👾 Answer:** {row['answer']}")
+                st.divider()
 
-        # Sidebar: View History
-        if "sidebar_search_history_query" not in st.session_state:
-            st.session_state.sidebar_search_history_query = ""
-
+        # Sidebar: View history
         with st.sidebar.expander("Chat History", expanded=False):
             sidebar_search_query = st.text_input(
-                "It matters !!!", 
-                value=st.session_state.sidebar_search_history_query, 
-                placeholder="Start Digging into it...", 
-                key="sidebar_search_history_query"
+                "Search history",
+                value=st.session_state.get("sidebar_search_history_query", ""),
+                placeholder="Start digging into it..."
             )
 
             filtered_history = st.session_state.user_history[
-                st.session_state.user_history.apply(lambda row: st.session_state.sidebar_search_history_query.lower() in row.to_string().lower(), axis=1)
-            ] if st.session_state.sidebar_search_history_query else st.session_state.user_history
-            if st.button("Clear Chat", key="clear_chat_button_sidebar"):
-                backup_chat_history(username)  # Backup chat history before clearing
-                ChatManager.clear_user_history(username)
-                st.session_state.user_history = pd.DataFrame(columns=["timestamp", "question", "answer"])
-                st.session_state.user_question = ""
-                st.session_state.last_question = ""
-                st.experimental_rerun()  # Refresh the page to sync changes
-            for _, row in filtered_history.iterrows():
-                st.write(f"**😊:** {row['question']}")
-                st.write(f"**👾:** {row['answer']}")
+                st.session_state.user_history.apply(lambda row: sidebar_search_query.lower() in row.to_string().lower(), axis=1)
+            ] if sidebar_search_query else st.session_state.user_history
 
-    elif page == "Feedback":        
+            if st.button("Clear All Chat", key="clear_all_chat_button_sidebar"):
+                ChatManager.clear_all_chat(username)
+                # Clear the chats immediately without reloading the page
+                st.session_state.main_chat = pd.DataFrame(columns=["timestamp", "question", "answer"])
+                st.session_state.user_history = pd.DataFrame(columns=["timestamp", "question", "answer"])
+                st.experimental_rerun()
+
+            for _, row in filtered_history.iterrows():
+                st.write(f"**[{row['timestamp']}]**")
+                st.write(f"**Question:** {row['question']}")
+                st.write(f"**👾 Answer:** {row['answer']}")
+
+    elif page == "Feedback":
         feedback_page(username)
-        
+
     elif page == "About":
-        image_url = "/home/harshk/LLM/modular/c.png"
-        st.image(image_url, width=100, caption='')  
-        st.write("ApnaGPT is a powerful tool for answering questions based on the context provided in a PDF document. Developed by Harsh Kumar at EduSwap Lab.")
+        st.image(LOGO_PATH, width=100, caption='')
+        st.write("ApnaGPT is a powerful tool for answering questions based on the context provided, it is developed by Harsh Kumar  .")
 
     elif page == "Logout":
         del st.session_state.username
+        st.session_state.main_chat = pd.DataFrame(columns=["timestamp", "question", "answer"])
+        st.session_state.user_question = ""
+        st.session_state.last_response = ""
+        # Clear main chat on logout
         st.experimental_rerun()
 
 
+# Function for feedback page
 def feedback_page(username):
     st.markdown(
         '<div style="animation: pulse 2s infinite; text-align: center;">'
-        '<h1 style="color: #3498DB;">We value your feedback!</h1>'
+        '<h3 style="color: #3498DB;">We value your feedback!</h3>'
         '</div>',
         unsafe_allow_html=True
     )
@@ -202,15 +210,13 @@ def feedback_page(username):
         help="😊 - Happy, 😐 - Neutral, 😞 - Unhappy"
     )
 
-    if st.button("Submit Feedback"):
-        if feedback:
-            timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
-            feedback_filename = f"{username}_{timestamp}.txt"
-            feedback_file_path = save_text_file(f"{emoji} {feedback}", FEEDBACK_FOLDER, feedback_filename)
-            st.success(f"Feedback saved as {feedback_file_path}")
-        else:
-            st.error("Feedback cannot be empty!")
+    submit_feedback = st.button("Submit Feedback")
 
+    if submit_feedback and feedback.strip():
+        save_text_file(os.path.join(FEEDBACK_FOLDER, f"{username}_{datetime.now().strftime('%Y%m%d%H%M%S')}.txt"), feedback)
+        st.success("Thank you for your feedback!")
+
+# Function for landing page
 def landing_page():
     st.markdown("""
         <style>
@@ -263,13 +269,16 @@ def landing_page():
                 to { opacity: 1; }
             }
         </style>
-        <div class="main-header">Welcome to ApnaGPT</div>
-        <div class="sub-header" style="animation-delay: 0s;">
-             👉 Please frame specific questions similar to the provided examples.<br>
-             👉 If the response doesn't match your query, consider rephrasing the question.
-        </div>
-        
+        <div class="main-header">Welcome to CDAC Mitra</div>
         <div class="button-center">
-            <button class="button" onclick="window.location.href='/main'">Get Started</button>
-        </div>
+            <button class="button" onclick="window.location.href='/main'"><p>👉 Create User login<br><br>
+                👉 Please frame specific questions similar to the provided examples<br><br>
+                👉 If the response doesn't match your query, consider rephrasing the questions</button><br><br>
+                ✨It is Gen AI Powered Query Enhancement System✨<br><br>
+                ⚠️ Disclaimer: This bot does not have memory elements, so it will not be able to connect with previous questions !<br><br>📈 All the Best, waiting to hear from YOU ALL 🫵</p>
+               </div>
     """, unsafe_allow_html=True)
+
+# Run the app
+if __name__ == "__main__":
+    landing_page()
