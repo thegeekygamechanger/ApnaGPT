@@ -4,7 +4,7 @@ ApnaGPT is a Streamlit app that provides a powerful tool for answering questions
 
 ## Features
 
-- **PDF Document Processing:** Upload a PDF document, and the app extracts text from it and processes it for question answering.
+- **PDF Document Processing:** Add path of your PDF document, and the app extracts text from it and processes it for question answering.
 - **Question Answering:** Users can ask questions based on the context provided in the PDF document, and the app generates answers using language models.
 - **User Authentication:** Users can log in, sign up, or reset their passwords securely.
 - **Chat History:** The app maintains a chat history for each user, allowing them to review past conversations.
@@ -18,7 +18,7 @@ pandas==1.3.3
 streamlit==0.88.0
 
 2. Run the Streamlit app:
-streamlit run trial.py
+streamlit run main.py
 
 3. Access the app through the provided URL in your browser.
 
